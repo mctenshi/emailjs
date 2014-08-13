@@ -31,6 +31,8 @@ describe("authorize plain", function()
 
    before(function(done)
    {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; // prevent CERT_HAS_EXPIRED errors
+
       smtp = simplesmtp.createServer({secureConnection:true,
                                       requireAuthentication:true,
                                       authMethods: ["PLAIN"]});
@@ -56,6 +58,7 @@ describe("authorize plain", function()
    {
       smtp.end(done);
    });
+
 
    it("login", function(done)
    {
@@ -84,4 +87,5 @@ describe("authorize plain", function()
          done();
       });
    });
+
 });

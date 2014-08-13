@@ -4,6 +4,7 @@ var fs         = require('fs');
 var os         = require('os');
 var path       = require('path');
 var moment     = require('moment');
+var mimelib    = require('mimelib');
 var CRLF       = "\r\n";
 var MIMECHUNK  = 76; // MIME standard wants 76 char chunks when sending out.
 var BASE64CHUNK= 24; // BASE64 bits needed before padding is used
@@ -27,6 +28,21 @@ var generate_boundary = function()
 
    return text;
 };
+
+function person2address(l) 
+{
+   // an array of emails or name+emails
+   if (Array.isArray(l)) {
+      l = l.join(', ');
+   }
+
+   // a string of comma separated emails or comma separated name+<emails>
+   if(typeof l == 'string') {
+      return l.replace(/([^<]+[^\s])(\s*)(<[^>]+>)/g, function(full, name, space, email) { return mimelib.encodeMimeWord(name, 'Q', 'utf-8') + space + email; });
+   }
+
+   return null;
+}
 
 var fix_header_name_case = function(header_name) {
     return header_name.toLowerCase().replace(/^(.)|-(.)/g, function(match) {
@@ -58,19 +74,23 @@ var Message = function(headers)
       }
       else if(header == "attachment" && typeof (headers[header]) == "object")
       {
-         if((headers[header]).constructor == Array)
-         {
+         if(Array.isArray(headers[header])) {
             var that = this;
 
-            headers[header].forEach(function(attachment)
-            {
-               that.attach(attachment);
-            });
-         }
-         else
-         {
+            for (var i = 0, l = headers[header].length; i < l; i++) {
+              this.attach(headers[header][i]);
+            }
+         } else {
             this.attach(headers[header]);
          }
+      }
+      else if(header == 'subject')
+      {
+         this.header.subject = mimelib.encodeMimeWord(headers.subject, 'Q', 'utf-8');
+      }
+      else if(/cc|bcc|to|from/i.test(header))
+      {
+         this.header[header.toLowerCase()] = person2address(headers[header]);
       }
       else
       {
@@ -268,7 +288,7 @@ var MessageStream = function(message)
           {
             'content-type': attachment.type + (attachment.charset ? "; charset=" + attachment.charset : ""),
             'content-transfer-encoding': 'base64', 
-            'content-disposition': attachment.inline ? 'inline' : 'attachment; filename="' + attachment.name + '"'
+            'content-disposition': attachment.inline ? 'inline' : 'attachment; filename="' + mimelib.encodeMimeWord(attachment.name, 'Q', 'utf-8') + '"'
           };
 
           if (attachment.name)
